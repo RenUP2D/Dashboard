@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Efektivitas SCADA &amp; FTR — PT PLN Distribusi Jawa Timur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg:#0E1420; --surface:#161D2C; --surface-2:#1D2537; --border:#2A3448;
+    --text-primary:#EAF0FA; --text-secondary:#8D9AB5; --text-muted:#5C6A87;
+    --amber:#F0A93B; --amber-dim:#4A3A1C;
+    --teal:#35C4B8; --teal-dim:#173A38;
+    --red:#E5564F; --red-dim:#3A1F1E;
+    --green:#3DCB6C; --green-dim:#173A24;
+    --purple:#9D7CF0; --purple-dim:#2A2148;
+  }
+  html[data-theme="light"]{
+    --bg:#F4F6FB; --surface:#FFFFFF; --surface-2:#F0F2F8; --border:#DCE1EC;
+    --text-primary:#1B2333; --text-secondary:#5B6B85; --text-muted:#8B96A8;
+    --amber:#B9720A; --amber-dim:#FBEBD3;
+    --teal:#0E8F82; --teal-dim:#DCF3F0;
+    --red:#C23B34; --red-dim:#FBE1DF;
+    --green:#1E9A50; --green-dim:#DFF5E7;
+    --purple:#6A4FCB; --purple-dim:#E8E2FB;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text-primary);font-family:'Inter',sans-serif;padding:28px 24px 64px;transition:background .2s,color .2s;}
+  .wrap{max-width:1100px;margin:0 auto;}
+  .top{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px;border-bottom:1px solid var(--border);padding-bottom:18px;margin-bottom:20px;}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.08em;color:var(--teal);text-transform:uppercase;margin:0 0 6px;}
+  h1{font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:600;margin:0;letter-spacing:-.01em;}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-secondary);text-align:right;line-height:1.6;}
+
+  .theme-toggle{
+    display:inline-flex;align-items:center;gap:7px;font-family:'IBM Plex Mono',monospace;font-size:12px;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary);
+    padding:7px 12px;border-radius:8px;cursor:pointer;white-space:nowrap;
+  }
+  .theme-toggle:hover{color:var(--text-primary);border-color:var(--text-muted);}
+
+  .notif-wrap{position:relative;}
+  .notif-btn{
+    position:relative;display:inline-flex;align-items:center;justify-content:center;font-size:15px;
+    background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary);
+    width:36px;height:36px;border-radius:8px;cursor:pointer;
+  }
+  .notif-btn:hover{color:var(--text-primary);border-color:var(--text-muted);}
+  .notif-badge{
+    position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;background:var(--red);
+    color:#fff;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;border-radius:999px;
+    display:flex;align-items:center;justify-content:center;line-height:1;
+  }
+  .notif-panel{
+    display:none;position:absolute;top:calc(100% + 10px);right:0;width:320px;max-width:80vw;
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;
+    box-shadow:0 12px 32px rgba(0,0,0,.35);z-index:60;
+  }
+  .notif-panel.open{display:block;}
+  .notif-panel-head{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;margin-bottom:10px;}
+  .notif-item{padding:10px 0;border-bottom:1px solid var(--border);font-size:12px;line-height:1.6;color:var(--text-secondary);}
+  .notif-item:last-child{border-bottom:none;}
+  .notif-item strong{color:var(--amber);display:block;font-family:'IBM Plex Mono',monospace;font-size:11px;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
+  .notif-empty{font-size:12px;color:var(--text-muted);padding:6px 0;}
+
+  .live-status{display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:8px 14px;border-radius:8px;margin:-6px 0 20px;}
+  .live-status.loading{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border);}
+  .live-status.ok{background:var(--teal-dim);color:var(--teal);border:1px solid var(--teal-dim);}
+  .live-status.error{background:var(--red-dim);color:var(--red);border:1px solid var(--red-dim);}
+
+  .metric-tabs{display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--border);}
+  .metric-tab{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;background:transparent;border:none;color:var(--text-secondary);padding:10px 18px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .metric-tab.active{color:var(--amber);border-bottom-color:var(--amber);}
+  .metric-page{display:none;}
+  .metric-page.active{display:block;}
+
+  .sub-tabs{display:flex;gap:6px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:4px;width:fit-content;}
+  .sub-tab{font-family:'IBM Plex Mono',monospace;font-size:12px;background:transparent;border:none;color:var(--text-secondary);padding:8px 14px;border-radius:6px;cursor:pointer;}
+  .sub-tab.active{background:var(--amber-dim);color:var(--amber);}
+  .sub-page{display:none;}
+  .sub-page.active{display:block;}
+
+  section{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin-bottom:20px;}
+  .section-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  h2{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;margin:0;}
+  .glow-heading{text-shadow:0 0 14px var(--glow-color,var(--amber)),0 0 28px var(--glow-color,var(--amber)),0 0 3px rgba(255,255,255,.6);}
+  html[data-theme="light"] .glow-heading{text-shadow:none;}
+  .subnote{font-size:12px;color:var(--text-muted);margin:-8px 0 16px;line-height:1.6;}
+
+  .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px;}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 18px;position:relative;overflow:hidden;}
+  .kpi::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px;background:var(--kpi-accent,var(--teal));}
+  .kpi-label{font-size:11.5px;color:var(--text-secondary);margin:0 0 8px;text-transform:uppercase;letter-spacing:.04em;}
+  .kpi-value{font-family:'Space Grotesk',sans-serif;font-size:23px;font-weight:600;margin:0;font-variant-numeric:tabular-nums;}
+  .kpi-unit{font-size:12px;color:var(--text-muted);font-weight:400;margin-left:4px;}
+
+  .chart-wrap{position:relative;height:260px;}
+
+  .achieve-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+  .achieve-card{background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;}
+  .achieve-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+  .achieve-title{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;color:var(--text-secondary);}
+  .achieve-pct{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .achieve-bar-track{background:var(--bg);border-radius:6px;height:10px;overflow:hidden;margin-bottom:10px;border:1px solid var(--border);}
+  .achieve-bar-fill{height:100%;border-radius:6px;transition:width .5s,background-color .3s;}
+  .achieve-status{display:inline-block;margin-top:8px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:5px;font-family:'IBM Plex Mono',monospace;}
+
+  .slicer{display:flex;gap:6px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;padding:4px;}
+  .slicer-btn{font-family:'IBM Plex Mono',monospace;font-size:11.5px;background:transparent;border:none;color:var(--text-secondary);padding:7px 12px;border-radius:6px;cursor:pointer;}
+  .slicer-btn.active{background:var(--amber-dim);color:var(--amber);}
+
+  .group-select{display:flex;gap:6px;flex-wrap:wrap;}
+  .group-btn{font-family:'IBM Plex Mono',monospace;font-size:11.5px;background:var(--surface-2);border:1px solid var(--border);color:var(--text-secondary);padding:7px 12px;border-radius:7px;cursor:pointer;}
+  .group-btn.active{background:var(--purple-dim);color:var(--purple);border-color:var(--purple-dim);}
+
+  .bar-row{display:grid;grid-template-columns:200px 1fr 100px;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .bar-row:last-child{border-bottom:none;}
+  .bar-label{font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bar-track{background:var(--surface-2);border-radius:4px;height:16px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:4px;transition:width .3s;}
+  .bar-val{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--text-secondary);text-align:right;font-variant-numeric:tabular-nums;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);font-weight:500;padding:0 10px 10px;border-bottom:1px solid var(--border);}
+  th.num,td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;}
+  td{padding:10px;border-bottom:1px solid var(--border);color:var(--text-primary);}
+  tr:last-child td{border-bottom:none;}
+  .rank{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;background:var(--amber-dim);color:var(--amber);font-family:'IBM Plex Mono',monospace;font-size:11px;margin-right:8px;}
+
+  .anomaly{font-size:12px;color:var(--amber);background:var(--amber-dim);border-radius:8px;padding:10px 14px;margin-bottom:16px;line-height:1.6;}
+  .jtm-locked{font-size:13px;color:var(--text-muted);padding:24px;text-align:center;border:1px dashed var(--border);border-radius:10px;}
+  .hint{font-size:12px;color:var(--text-muted);margin-top:8px;}
+  .footnote{font-size:12px;color:var(--text-muted);line-height:1.7;border-top:1px solid var(--border);padding-top:16px;margin-top:8px;}
+
+  .site-nav{display:flex;gap:8px;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;font-size:12px;flex-wrap:wrap;}
+  .site-nav a{color:var(--text-secondary);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:7px;background:var(--surface-2);}
+  .site-nav a:hover{color:var(--text-primary);border-color:var(--text-muted);}
+  .site-nav a.current{color:var(--amber);border-color:var(--amber-dim);background:var(--amber-dim);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="site-nav">
+    <a href="index.html">&larr; Beranda</a>
+    <a href="dashboard_keandalan_2026.html">Keandalan Sistem (SAIDI/SAIFI/ENS)</a>
+    <a href="dashboard_scada_ftr.html" class="current">Efektivitas SCADA &amp; FTR</a>
+  </div>
+
+  <div class="top">
+    <div>
+      <p class="eyebrow">Distribusi Jawa Timur &middot; UP2D Jawa Timur</p>
+      <h1>Dashboard Efektivitas SCADA &amp; FTR</h1>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+      <div class="meta">Data: Januari &ndash; Agustus 2026</div>
+      <div class="notif-wrap">
+        <button class="notif-btn" id="notifBtn" type="button" aria-label="Notifikasi">
+          &#128276;<span class="notif-badge" id="notifBadge" style="display:none">0</span>
+        </button>
+        <div class="notif-panel" id="notifPanel">
+          <div class="notif-panel-head">Notifikasi</div>
+          <div id="notifList"></div>
+        </div>
+      </div>
+      <button class="theme-toggle" id="themeToggle" type="button">
+        <span id="themeIcon">&#9789;</span><span id="themeLabel">Dark</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="metric-tabs" id="metricTabs"></div>
+  <div class="live-status" id="liveStatus" style="display:none;"></div>
+  <div id="pages"></div>
+
+</div>
+
+<script>
+const METRICS = [
+  { key:'scada', label:'Efektivitas SCADA', color:'#F0A93B',
+    subs:[
+      {key:'gi', label:'Gardu Induk'},
+      {key:'jtm', label:'JTM All Zona'},
+    ]},
+  { key:'ftr', label:'FTR', color:'#35C4B8',
+    subs:[
+      {key:'gi', label:'Gardu Induk'},
+      {key:'jtm_gt15', label:'JTM > 1,5'},
+      {key:'jtm_lt15', label:'JTM < 1,5'},
+    ]},
+];
+
+const DATA_SOURCE_URL = 'https://script.google.com/macros/s/AKfycbx_FuPvLl-S95QsBva50nTfSchRToEGR_EFW2b46HmPK-nmoGxOoxAzd_tiFhy0YtGMZQ/exec';
+const EMBEDDED_DATA = {"months": ["JAN", "FEB", "MAR", "APR", "MEI", "JUN", "JUL", "AGU"], "months_label": ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus"], "recap": {"scada": {"combined": [{"bulan": "JAN", "ef_gi_td": 1.1, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9604914478, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.080070207}, {"bulan": "FEB", "ef_gi_td": 1.01063886, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9675981691, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.055553698}, {"bulan": "MAR", "ef_gi_td": 1.009838523, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9720549265, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.05596171}, {"bulan": "APR", "ef_gi_td": 1.088267707, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9736810407, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.078602351}, {"bulan": "MEI", "ef_gi_td": 1.09264237, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9754276078, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.080101764}, {"bulan": "JUN", "ef_gi_td": 1.1, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9771942504, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.082456321}, {"bulan": "JUL", "ef_gi_td": 1.1, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9783873077, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.082626758}, {"bulan": "AGU", "ef_gi_td": 1.1, "ef_gi_mw": 1.1, "ef_jtm_td": 1.1, "ef_jtm_mw": 1.1, "ef_kesiapan_rc": 0.9783873077, "target": 1.0, "nilai_maksimal": 1.1, "kumulatif": 1.082626758}], "gi": [{"bulan": "JAN", "event_le5": 3.0, "total_event": 3.0, "gardu_le5": 497.3477199, "total_gardu": 616.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 39.53415768, "total_mw": 45.9873}, {"bulan": "FEB", "event_le5": 4.0, "total_event": 4.0, "gardu_le5": 922.2461547, "total_gardu": 1545.0, "pct_bulanan": 0.9183431961, "kumulatif": 1.01063886, "mw_le5": 75.57826201, "total_mw": 104.7951}, {"bulan": "MAR", "event_le5": 1.0, "total_event": 1.0, "gardu_le5": 108.4937788, "total_gardu": 167.0, "pct_bulanan": 0.9994820709, "kumulatif": 1.009838523, "mw_le5": 7.788164193, "total_mw": 11.988}, {"bulan": "APR", "event_le5": 6.0, "total_event": 6.0, "gardu_le5": 1231.378359, "total_gardu": 1573.0, "pct_bulanan": 1.1, "kumulatif": 1.088267707, "mw_le5": 65.16190216, "total_mw": 83.8161}, {"bulan": "MEI", "event_le5": 1.0, "total_event": 1.0, "gardu_le5": 258.958536, "total_gardu": 349.0, "pct_bulanan": 1.1, "kumulatif": 1.09264237, "mw_le5": 20.5328891, "total_mw": 27.6723}, {"bulan": "JUN", "event_le5": 3.0, "total_event": 3.0, "gardu_le5": 711.8643672, "total_gardu": 941.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 44.62470888, "total_mw": 75.0249}, {"bulan": "JUL", "event_le5": 3.0, "total_event": 3.0, "gardu_le5": 1230.363632, "total_gardu": 1326.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 61.71504527, "total_mw": 70.0632}, {"bulan": "AGU", "event_le5": 0.0, "total_event": 0, "gardu_le5": 0.0, "total_gardu": 0.0, "pct_bulanan": 0.0, "kumulatif": 1.1, "mw_le5": 0.0, "total_mw": 0.0}], "jtm": [{"bulan": "JAN", "event_le5": 585.0, "total_event": 650.0, "gardu_le5": 51499.0, "total_gardu": 54241.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 2415.635956, "total_mw": 3093.096644}, {"bulan": "FEB", "event_le5": 500.0, "total_event": 605.0, "gardu_le5": 49885.0, "total_gardu": 54962.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 2339.818241, "total_mw": 3189.339099}, {"bulan": "MAR", "event_le5": 599.0, "total_event": 693.0, "gardu_le5": 58363.0, "total_gardu": 63366.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 2791.736154, "total_mw": 3855.573143}, {"bulan": "APR", "event_le5": 442.0, "total_event": 528.0, "gardu_le5": 51977.0, "total_gardu": 56578.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 2750.612335, "total_mw": 3558.414853}, {"bulan": "MEI", "event_le5": 235.0, "total_event": 327.0, "gardu_le5": 28350.0, "total_gardu": 33279.0, "pct_bulanan": 0.9418669298, "kumulatif": 1.1, "mw_le5": 1535.462027, "total_mw": 2218.906317}, {"bulan": "JUN", "event_le5": 246.0, "total_event": 271.0, "gardu_le5": 33083.0, "total_gardu": 34257.0, "pct_bulanan": 1.1, "kumulatif": 1.1, "mw_le5": 1666.106232, "total_mw": 2050.956256}, {"bulan": "JUL", "event_le5": 337.0, "total_event": 441.0, "gardu_le5": 62104.0, "total_gardu": 68690.0, "pct_bulanan": 1.062928401, "kumulatif": 1.1, "mw_le5": 3024.443722, "total_mw": 3963.312143}, {"bulan": "AGU", "event_le5": 128.0, "total_event": 200.0, "gardu_le5": 6348.767276, "total_gardu": 28284.0, "pct_bulanan": 0.221011665, "kumulatif": 1.1, "mw_le5": 1368.742149, "total_mw": 1784.016715}], "rc": [{"bulan": "JAN", "rc_gagal": 164.0, "aset_rc": 4151.0, "pct_bulanan": 0.9604914478}, {"bulan": "FEB", "rc_gagal": 105.0, "aset_rc": 4151.0, "pct_bulanan": 0.9747048904}, {"bulan": "MAR", "rc_gagal": 79.0, "aset_rc": 4151.0, "pct_bulanan": 0.9809684413}, {"bulan": "APR", "rc_gagal": 89.0, "aset_rc": 4151.0, "pct_bulanan": 0.9785593833}, {"bulan": "MEI", "rc_gagal": 73.0, "aset_rc": 4151.0, "pct_bulanan": 0.9824138762}, {"bulan": "JUN", "rc_gagal": 58.0, "aset_rc": 4151.0, "pct_bulanan": 0.9860274633}, {"bulan": "JUL", "rc_gagal": 60.0, "aset_rc": 4151.0, "pct_bulanan": 0.9855456517}, {"bulan": "AGU", "rc_gagal": 0, "aset_rc": 0, "pct_bulanan": 0.0}], "target_sla": {"gi": 0.65, "jtm": 0.65, "rc": 1.0}}, "ftr": {"combined": [{"bulan": "JAN", "gardu_induk": 1.1, "jtm_gt15": 0.9514555366, "jtm_lt15": 1.1, "kumulatif": 1.0629111111111114, "mom": "="}, {"bulan": "FEB", "gardu_induk": 1.1, "jtm_gt15": 0.4855588391, "jtm_lt15": 1.1, "kumulatif": 0.9497965841161407, "mom": "⬇️"}, {"bulan": "MAR", "gardu_induk": 1.1, "jtm_gt15": 0.06036587031, "jtm_lt15": 1.1, "kumulatif": 0.8443345424107146, "mom": "⬇️"}, {"bulan": "APR", "gardu_induk": 1.1, "jtm_gt15": 0.1716416816, "jtm_lt15": 1.1, "kumulatif": 0.8708433480176215, "mom": "⬆️"}, {"bulan": "MEI", "gardu_induk": 1.1, "jtm_gt15": 0.1533028163, "jtm_lt15": 1.1, "kumulatif": 0.8659924853228966, "mom": "⬇️"}, {"bulan": "JUN", "gardu_induk": 1.1, "jtm_gt15": 0.17, "jtm_lt15": 1.1, "kumulatif": 0.8675, "mom": "⬆️"}, {"bulan": "JUL", "gardu_induk": 1.1, "jtm_gt15": 0.2247715375, "jtm_lt15": 1.1, "kumulatif": 0.8901, "mom": "⬆️"}, {"bulan": "AGU", "gardu_induk": 1.1, "jtm_gt15": 0.1483019525, "jtm_lt15": 1.1, "kumulatif": 0.8620754881, "mom": "⬇️"}], "gi": [{"bulan": "JAN", "lama_gangguan_jam": 7.344, "kali_gangguan": 3.0, "ftr": 2.448, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "FEB", "lama_gangguan_jam": 10.362, "kali_gangguan": 4.0, "ftr": 2.5905, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "MAR", "lama_gangguan_jam": 3.036, "kali_gangguan": 1.0, "ftr": 3.036, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "APR", "lama_gangguan_jam": 15.912, "kali_gangguan": 6.0, "ftr": 2.652, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "MEI", "lama_gangguan_jam": 2.418, "kali_gangguan": 1.0, "ftr": 2.418, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "JUN", "lama_gangguan_jam": 14.934, "kali_gangguan": 3.0, "ftr": 4.978, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.0044, "kumulatif": 1.1}, {"bulan": "JUL", "lama_gangguan_jam": 7.2, "kali_gangguan": 3.0, "ftr": 2.4, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "AGU", "lama_gangguan_jam": 0.0, "kali_gangguan": 0.0, "ftr": 0.0, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.0, "kumulatif": 1.1}], "jtm_gt15": [{"bulan": "JAN", "lama_gangguan_jam": 3077.478, "kali_gangguan": 587.0, "ftr": 5.242722317, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.9514555366, "kumulatif": 0.9514555366}, {"bulan": "FEB", "lama_gangguan_jam": 5532.12, "kali_gangguan": 550.0, "ftr": 10.0584, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.0, "kumulatif": 0.4855588391}, {"bulan": "MAR", "lama_gangguan_jam": 8439.786, "kali_gangguan": 621.0, "ftr": 13.59063768, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.0, "kumulatif": 0.06036587031}, {"bulan": "APR", "lama_gangguan_jam": 3391.662, "kali_gangguan": 478.0, "ftr": 7.095527197, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.5808945607, "kumulatif": 0.1716416816}, {"bulan": "MEI", "lama_gangguan_jam": 2836.572, "kali_gangguan": 285.0, "ftr": 9.952884211, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.009423157895, "kumulatif": 0.1533028163}, {"bulan": "JUN", "lama_gangguan_jam": 984.918, "kali_gangguan": 233.0, "ftr": 4.22711588, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 1.1, "kumulatif": 0.17}, {"bulan": "JUL", "lama_gangguan_jam": 3679.56, "kali_gangguan": 394.0, "ftr": 9.338984772, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.1322030457, "kumulatif": 0.2247715375}, {"bulan": "AGU", "lama_gangguan_jam": 2879.418, "kali_gangguan": 181.0, "ftr": 15.90838674, "nilai_maks": 1.1, "sla_menit": 5.0, "pct_bulanan": 0.0, "kumulatif": 0.1483019525}], "jtm_lt15": [{"bulan": "JAN", "lama_gangguan_jam": 432.066, "kali_gangguan": 63.0, "ftr": 6.858190476, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "FEB", "lama_gangguan_jam": 626.082, "kali_gangguan": 56.0, "ftr": 11.18003571, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "MAR", "lama_gangguan_jam": 2296.62, "kali_gangguan": 72.0, "ftr": 31.8975, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 0.405125, "kumulatif": 1.1}, {"bulan": "APR", "lama_gangguan_jam": 654.114, "kali_gangguan": 50.0, "ftr": 13.08228, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "MEI", "lama_gangguan_jam": 793.326, "kali_gangguan": 42.0, "ftr": 18.88871429, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 1.055564286, "kumulatif": 1.1}, {"bulan": "JUN", "lama_gangguan_jam": 193.98, "kali_gangguan": 38.0, "ftr": 5.104736842, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "JUL", "lama_gangguan_jam": 742.224, "kali_gangguan": 47.0, "ftr": 15.792, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 1.1, "kumulatif": 1.1}, {"bulan": "AGU", "lama_gangguan_jam": 600.792, "kali_gangguan": 19.0, "ftr": 31.62063158, "nilai_maks": 1.1, "sla_menit": 20.0, "pct_bulanan": 0.4189684211, "kumulatif": 1.1}]}}, "breakdown_gi": [{"b": 1, "gi": "CARUBAN", "trafo": "TRAFO 1- 70/20 KV - 20 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 3.432, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 3.927438994, "mw_tot": 6.1938, "gtt_le5": 109.063823, "gtt_tot": 172.0}, {"b": 1, "gi": "CARUBAN", "trafo": "TRAFO 2- 70/20 KV - 30 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 1.848, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 15.72661869, "mw_tot": 19.9134, "gtt_le5": 209.2838969, "gtt_tot": 265.0}, {"b": 1, "gi": "LAWANG", "trafo": "TRAFO 2- 150/22 KV - 60 MVA", "eq": "Relay Outgoing Feeder", "pp": "Anomali Relay", "ev_ftr": 1.0, "ftr_jam": 2.064, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 19.8801, "mw_tot": 19.8801, "gtt_le5": 179.0, "gtt_tot": 179.0}, {"b": 2, "gi": "SITUBONDO", "trafo": "TRAFO 3- 150/20 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "ANOMALI WIRING TRIPPING / AUX RELAY RUSAK", "ev_ftr": 1.0, "ftr_jam": 2.8680000000000003, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 3.283488265, "mw_tot": 19.0143, "gtt_le5": 80.47130483, "gtt_tot": 466.0}, {"b": 2, "gi": "RUNGKUT", "trafo": "TRAFO 2- 150/22 KV - 60 MVA", "eq": "MV Cell", "pp": "KETERLAMBATAN KERJA PMT", "ev_ftr": 1.0, "ftr_jam": 1.632, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 40.65021409, "mw_tot": 40.7259, "gtt_le5": 331.3830039, "gtt_tot": 332.0}, {"b": 2, "gi": "KRAKSAAN", "trafo": "TRAFO 1- 150/22 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 4.314, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 6.934017555, "mw_tot": 20.2797, "gtt_le5": 122.4070516, "gtt_tot": 358.0}, {"b": 2, "gi": "GENTENG", "trafo": "TRAFO 3- 150/20 KV - 60 MVA", "eq": "Relay Outgoing Feeder", "pp": "DESAIN SUBSTANDAR", "ev_ftr": 1.0, "ftr_jam": 1.548, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 24.7105421, "mw_tot": 24.7752, "gtt_le5": 387.9847943, "gtt_tot": 389.0}, {"b": 3, "gi": "SIMAN", "trafo": "TRAFO 1- 70/20 KV - 30 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 3.036, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 7.788164193, "mw_tot": 11.988, "gtt_le5": 108.4937788, "gtt_tot": 167.0}, {"b": 4, "gi": "TULUNG AGUNG", "trafo": "TRAFO 4- 70/20 KV - 20 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 4.332, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 4.879304869, "mw_tot": 9.5904, "gtt_le5": 86.49084791, "gtt_tot": 170.0}, {"b": 4, "gi": "PAMEKASAN", "trafo": "TRAFO 1- 150/20 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "AUX RELAY FLASHOVER", "ev_ftr": 1.0, "ftr_jam": 2.064, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 21.27653203, "mw_tot": 24.9417, "gtt_le5": 313.922619, "gtt_tot": 368.0}, {"b": 4, "gi": "MAGETAN", "trafo": "TRAFO 1- 70/20 KV - 20 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 0.0, "ftr_jam": 9.636, "ev_scada_le5": 0.0, "ev_scada_tot": 0.0, "mw_le5": 0.0, "mw_tot": 13.5198, "gtt_le5": 0.0, "gtt_tot": 249.0}, {"b": 4, "gi": "MRANGGEN", "trafo": "TRAFO 1- 70/20 KV - 30 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 0.0, "ftr_jam": 20.682000000000002, "ev_scada_le5": 0.0, "ev_scada_tot": 0.0, "mw_le5": 0.0, "mw_tot": 16.5501, "gtt_le5": 0.0, "gtt_tot": 256.0}, {"b": 4, "gi": "MRANGGEN", "trafo": "TRAFO 2- 70/20 KV - 20 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 0.0, "ftr_jam": 34.266000000000005, "ev_scada_le5": 0.0, "ev_scada_tot": 0.0, "mw_le5": 0.0, "mw_tot": 6.5601, "gtt_le5": 0.0, "gtt_tot": 163.0}, {"b": 4, "gi": "MAGETAN", "trafo": "TRAFO 2- 70/20 KV - 30 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 0.0, "ftr_jam": 28.433999999999997, "ev_scada_le5": 0.0, "ev_scada_tot": 0.0, "mw_le5": 0.0, "mw_tot": 20.8125, "gtt_le5": 0.0, "gtt_tot": 397.0}, {"b": 4, "gi": "MRANGGEN", "trafo": "TRAFO 2- 70/20 KV - 20 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 3.9000000000000004, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 5.826409474, "mw_tot": 5.8275, "gtt_le5": 162.9694971, "gtt_tot": 163.0}, {"b": 4, "gi": "TRENGGALEK", "trafo": "TRAFO 2- 70/20 KV - 30 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 2.3339999999999996, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 13.51235589, "mw_tot": 16.2837, "gtt_le5": 328.6042444, "gtt_tot": 396.0}, {"b": 4, "gi": "SIMAN", "trafo": "TRAFO 1- 70/20 KV - 30 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 1.068, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 9.301110199, "mw_tot": 10.8558, "gtt_le5": 143.083458, "gtt_tot": 167.0}, {"b": 4, "gi": "SUKOLILO", "trafo": "TRAFO 1- 150/22 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 2.214, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 10.36618969, "mw_tot": 16.317, "gtt_le5": 196.3076923, "gtt_tot": 309.0}, {"b": 5, "gi": "BANGKALAN", "trafo": "TRAFO 2- 150/22 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 2.418, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 20.5328891, "mw_tot": 27.6723, "gtt_le5": 258.958536, "gtt_tot": 349.0}, {"b": 6, "gi": "BUDURAN", "trafo": "TRAFO 2- 150/20 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 6.9, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 0.0, "mw_tot": 27.6057, "gtt_le5": 0.0, "gtt_tot": 200.0}, {"b": 6, "gi": "MOJOAGUNG", "trafo": "TRAFO 2- 150/20 KV - 30 MVA", "eq": "Kabel Outgoing s/d Pole Pertama", "pp": "Anomali Auxiliary Relay", "ev_ftr": 1.0, "ftr_jam": 4.248, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 17.71593582, "mw_tot": 20.3796, "gtt_le5": 176.4673974, "gtt_tot": 203.0}, {"b": 6, "gi": "PONOROGO", "trafo": "TRAFO 3- 150/20 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 3.786, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 26.90877306, "mw_tot": 27.0396, "gtt_le5": 535.3969699, "gtt_tot": 538.0}, {"b": 7, "gi": "KRAKSAAN", "trafo": "TRAFO 1- 150/22 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "N/A", "ev_ftr": 1.0, "ftr_jam": 3.8519999999999994, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 19.098029, "mw_tot": 19.1475, "gtt_le5": 428.8890179, "gtt_tot": 430.0}, {"b": 7, "gi": "KERTOSONO", "trafo": "TRAFO 3- 150/22 KV - 60 MVA", "eq": "MV Cell", "pp": "Anomali Modul I/O", "ev_ftr": 1.0, "ftr_jam": 1.914, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 18.2484, "mw_tot": 18.2484, "gtt_le5": 349.0, "gtt_tot": 349.0}, {"b": 7, "gi": "PONOROGO", "trafo": "TRAFO 3- 150/20 KV - 60 MVA", "eq": "Kelompok Tidak Terencana (Unplanned)", "pp": "", "ev_ftr": 1.0, "ftr_jam": 1.4340000000000002, "ev_scada_le5": 1.0, "ev_scada_tot": 1.0, "mw_le5": 24.36861627, "mw_tot": 32.6673, "gtt_le5": 452.4746136, "gtt_tot": 547.0}]};
+let DATA = EMBEDDED_DATA;
+let JTM_DETAIL = null; // diisi setelah live fetch (breakdown_jtm, besar)
+let MONTHS, MONTHS_LABEL;
+
+// ---- Theme ----
+let currentTheme = 'dark';
+const THEME_COLORS = { dark:{grid:'#2A3448',tick:'#8D9AB5'}, light:{grid:'#DCE1EC',tick:'#5B6B85'} };
+const themeToggleBtn = document.getElementById('themeToggle');
+const themeIcon = document.getElementById('themeIcon');
+const themeLabel = document.getElementById('themeLabel');
+function applyTheme(theme){
+  currentTheme = theme;
+  document.documentElement.setAttribute('data-theme', theme);
+  themeIcon.innerHTML = theme==='dark' ? '&#9789;' : '&#9728;';
+  themeLabel.textContent = theme==='dark' ? 'Dark' : 'Light';
+  const c = THEME_COLORS[theme];
+  Object.values(chartInstances).forEach(chart=>{
+    chart.options.scales.x.ticks.color = c.tick;
+    chart.options.scales.x.grid.color = c.grid;
+    chart.options.scales.y.ticks.color = c.tick;
+    chart.options.scales.y.grid.color = c.grid;
+    chart.options.plugins.legend.labels.color = c.tick;
+    chart.update();
+  });
+}
+themeToggleBtn.addEventListener('click', ()=> applyTheme(currentTheme==='dark'?'light':'dark'));
+
+let activeMetric = 'scada';
+let activeSub = {};
+let selectedMonthIdx = {};
+let groupBy = { jtm:'z', jtm_gt15:'z', jtm_lt15:'z' };
+let chartInstances = {};
+
+const tabsEl = document.getElementById('metricTabs');
+const pagesEl = document.getElementById('pages');
+const liveStatusEl = document.getElementById('liveStatus');
+
+tabsEl.addEventListener('click', e=>{
+  const btn = e.target.closest('.metric-tab');
+  if(!btn) return;
+  activeMetric = btn.dataset.metric;
+  document.querySelectorAll('.metric-tab').forEach(b=>b.classList.toggle('active', b.dataset.metric===activeMetric));
+  document.querySelectorAll('.metric-page').forEach(p=>p.classList.toggle('active', p.id==='page-'+activeMetric));
+  ensureChart(activeMetric);
+});
+
+function metricByKey(key){ return METRICS.find(m=>m.key===key); }
+
+function initDashboard(){
+  MONTHS = DATA.months;
+  MONTHS_LABEL = DATA.months_label || DATA.months;
+
+  METRICS.forEach(m=>{
+    if(!(m.key in selectedMonthIdx)) selectedMonthIdx[m.key] = MONTHS.length-1;
+    if(!(m.key in activeSub)) activeSub[m.key] = m.subs[0].key;
+  });
+
+  Object.values(chartInstances).forEach(c=>{ try{c.destroy();}catch(e){} });
+  chartInstances = {};
+
+  tabsEl.innerHTML = METRICS.map(m=>
+    '<button class="metric-tab'+(m.key===activeMetric?' active':'')+'" data-metric="'+m.key+'">'+m.label+'</button>'
+  ).join('');
+
+  pagesEl.innerHTML = METRICS.map(m=>buildMetricPage(m)).join('');
+
+  METRICS.forEach(m=>{
+    renderSlicer(m);
+    renderAchieveOverview(m);
+    renderSubTabs(m);
+    m.subs.forEach(s=>renderSubContent(m,s));
+  });
+  updateNotifications();
+  ensureChart(activeMetric);
+}
+
+function buildMetricPage(m){
+  return '<div class="metric-page'+(m.key===activeMetric?' active':'')+'" id="page-'+m.key+'">'+
+
+    '<section>'+
+      '<div class="section-head"><h2>Pilih bulan</h2><div class="slicer" id="slicer-'+m.key+'"></div></div>'+
+      '<div class="kpi-row" id="kpi-'+m.key+'"></div>'+
+    '</section>'+
+
+    '<section>'+
+      '<div class="section-head"><h2 class="glow-heading" style="--glow-color:'+m.color+'">Tren kumulatif '+m.label+' &mdash; realisasi vs target</h2></div>'+
+      '<div class="chart-wrap"><canvas id="chart-'+m.key+'"></canvas></div>'+
+    '</section>'+
+
+    '<section>'+
+      '<div class="section-head"><h2>Komponen pembentuk '+m.label+'</h2></div>'+
+      '<p class="subnote">Pencapaian tiap komponen bulan terpilih (kumulatif). Pencapaian gabungan di atas adalah hasil kombinasi ketiganya.</p>'+
+      '<div class="achieve-row" id="achieve-overview-'+m.key+'"></div>'+
+      (m.key==='scada' ? '<div id="component-detail-scada" style="margin-top:22px;"></div>' : '') +
+    '</section>'+
+
+    '<section>'+
+      '<div class="section-head"><h2>Detail per sumber</h2><div class="sub-tabs" id="subtabs-'+m.key+'"></div></div>'+
+      m.subs.map(s=>'<div class="sub-page'+(s.key===m.subs[0].key?' active':'')+'" id="subpage-'+m.key+'-'+s.key+'"></div>').join('') +
+    '</section>'+
+
+  '</div>';
+}
+
+function renderSlicer(m){
+  const el = document.getElementById('slicer-'+m.key);
+  el.innerHTML = MONTHS.map((mo,i)=>
+    '<button class="slicer-btn'+(i===selectedMonthIdx[m.key]?' active':'')+'" data-idx="'+i+'">'+mo+'</button>'
+  ).join('');
+  el.querySelectorAll('.slicer-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      selectedMonthIdx[m.key] = parseInt(btn.dataset.idx);
+      renderAll(m.key);
+    });
+  });
+}
+
+function renderKpi(m){
+  const idx = selectedMonthIdx[m.key];
+  const combined = DATA.recap[m.key].combined[idx];
+  const pct = combined.kumulatif*100;
+  const targetPct = m.key==='ftr' ? 100 : (combined.target*100);
+  const gap = pct - targetPct;
+  const gapUp = gap >= 0;
+  const gapColor = gapUp ? 'var(--green)' : 'var(--red)';
+  const gapArrow = gapUp ? '&#9650;' : '&#9660;';
+  const kpis = [
+    {label:'Target', value:targetPct.toFixed(0), unit:'%', accent:'var(--text-secondary)'},
+    {label:'Pencapaian', value:pct.toFixed(1), unit:'%', accent: pct>=100?'var(--green)':(pct>=90?'var(--amber)':'var(--red)')},
+    {label:'GAP', value:(gapUp?'+':'')+gap.toFixed(1), unit:'%', accent:gapColor, arrow:gapArrow},
+  ];
+  document.getElementById('kpi-'+m.key).innerHTML = kpis.map(k=>
+    '<div class="kpi" style="--kpi-accent:'+k.accent+'"><p class="kpi-label">'+k.label+'</p><p class="kpi-value">'+
+    (k.arrow?'<span style="font-size:16px;margin-right:3px;">'+k.arrow+'</span>':'')+
+    k.value+'<span class="kpi-unit">'+k.unit+'</span></p></div>'
+  ).join('');
+}
+
+function baseBarColors(key){
+  const m = metricByKey(key);
+  const combined = DATA.recap[key].combined;
+  return combined.map((c,i)=> i===selectedMonthIdx[key] ? m.color : m.color+'55');
+}
+
+function ensureChart(key){
+  if(chartInstances[key]){ chartInstances[key].resize(); return; }
+  const m = metricByKey(key);
+  const combined = DATA.recap[key].combined;
+  const ctx = document.getElementById('chart-'+key).getContext('2d');
+  chartInstances[key] = new Chart(ctx, {
+    data: {
+      labels: MONTHS,
+      datasets: [
+        { type:'bar', label:'Kumulatif', data: combined.map(c=>c.kumulatif*100),
+          backgroundColor: baseBarColors(key), borderRadius:4, order:2 },
+        { type:'line', label:'Target', data: combined.map(c=>c.target*100),
+          borderColor:'#E5564F', borderDash:[5,4], pointRadius:0, borderWidth:2, tension:0, order:1 }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      onClick: (evt, elements) => { if(elements.length){ selectedMonthIdx[key]=elements[0].index; renderAll(key);} },
+      onHover: (evt, elements, chartRef) => {
+        const barEl = elements.find(el => el.datasetIndex===0);
+        const hoverIdx = barEl ? barEl.index : null;
+        const base = baseBarColors(key);
+        chartRef.data.datasets[0].backgroundColor = base.map((c,i)=>{
+          if(hoverIdx===null) return c;
+          return i===hoverIdx ? m.color : m.color+'1a';
+        });
+        chartRef.update('none');
+      },
+      plugins:{ legend:{labels:{color:'#8D9AB5',font:{family:'Inter',size:11}}}, tooltip:{mode:'index',intersect:false} },
+      scales:{
+        x:{ ticks:{color:THEME_COLORS[currentTheme].tick,font:{family:'IBM Plex Mono',size:10}}, grid:{color:THEME_COLORS[currentTheme].grid} },
+        y:{ ticks:{color:THEME_COLORS[currentTheme].tick,font:{family:'IBM Plex Mono',size:10}}, grid:{color:THEME_COLORS[currentTheme].grid} }
+      }
+    }
+  });
+}
+function updateChartHighlight(key){
+  const chart = chartInstances[key]; if(!chart) return;
+  chart.data.datasets[0].backgroundColor = baseBarColors(key);
+  chart.update();
+}
+
+function achieveColorFor(pct){
+  if(pct>=100) return {color:'var(--green)', bg:'var(--green-dim)', text:'Tercapai'};
+  if(pct>=90) return {color:'var(--amber)', bg:'var(--amber-dim)', text:'Perlu Perhatian'};
+  return {color:'var(--red)', bg:'var(--red-dim)', text:'Tidak Tercapai'};
+}
+
+function renderAchieveOverview(m){
+  const idx = selectedMonthIdx[m.key];
+  const combined = DATA.recap[m.key].combined[idx];
+  let items;
+  if(m.key==='scada'){
+    items = [
+      {label:'GI (Trafo Distribusi)', val: combined.ef_gi_td},
+      {label:'GI (MW)', val: combined.ef_gi_mw},
+      {label:'JTM All Zona (Trafo Distribusi)', val: combined.ef_jtm_td},
+      {label:'JTM All Zona (MW)', val: combined.ef_jtm_mw},
+      {label:'Kesiapan RC', val: combined.ef_kesiapan_rc},
+    ];
+  } else {
+    items = [
+      {label:'Gardu Induk', val: combined.gardu_induk},
+      {label:'JTM > 1,5', val: combined.jtm_gt15},
+      {label:'JTM < 1,5', val: combined.jtm_lt15},
+    ];
+  }
+  document.getElementById('achieve-overview-'+m.key).innerHTML = items.map(it=>{
+    const pct = it.val*100;
+    const s = achieveColorFor(pct);
+    return '<div class="achieve-card">'+
+      '<div class="achieve-head"><span class="achieve-title">'+it.label+'</span><span class="achieve-pct" style="color:'+s.color+'">'+pct.toFixed(1)+'%</span></div>'+
+      '<div class="achieve-bar-track"><div class="achieve-bar-fill" style="width:'+Math.min(pct,100).toFixed(1)+'%;background:'+s.color+'"></div></div>'+
+      '<span class="achieve-status" style="color:'+s.color+';background:'+s.bg+'">'+s.text+'</span>'+
+    '</div>';
+  }).join('');
+
+  if(m.key==='scada') renderComponentDetail(idx);
+}
+
+function componentDetailRow(label, le5, total, unit, slaTarget, precomputedPct){
+  const pct = precomputedPct !== undefined ? precomputedPct : (total>0 ? (le5/total*100) : 0);
+  const color = pct>=slaTarget ? 'var(--green)' : 'var(--red)';
+  const dec = unit==='MW' ? 2 : 0;
+  return '<tr>'+
+    '<td>'+label+'</td>'+
+    '<td class="num">'+le5.toLocaleString('id-ID',{maximumFractionDigits:dec})+' '+unit+'</td>'+
+    '<td class="num">'+total.toLocaleString('id-ID',{maximumFractionDigits:dec})+' '+unit+'</td>'+
+    '<td class="num" style="color:'+color+';font-weight:600;">'+pct.toFixed(1)+'%</td>'+
+    '<td class="num" style="color:var(--text-muted);">'+slaTarget.toFixed(0)+'%</td>'+
+  '</tr>';
+}
+
+function renderComponentDetail(idx){
+  const gi = DATA.recap.scada.gi[idx];
+  const jtm = DATA.recap.scada.jtm[idx];
+  const rc = DATA.recap.scada.rc[idx];
+  const sla = DATA.recap.scada.target_sla || {gi:65, jtm:65, rc:100};
+  const slaGi = (sla.gi||0.65)*100, slaJtm = (sla.jtm||0.65)*100, slaRc = (sla.rc||1)*100;
+
+  function groupTable(title, rowsHtml, col2Label){
+    return '<div style="margin-bottom:20px;">'+
+      '<h3 style="font-family:\'Space Grotesk\',sans-serif;font-size:13px;font-weight:600;color:var(--text-secondary);margin:0 0 10px;">'+title+'</h3>'+
+      '<table><thead><tr><th>Komponen</th><th class="num">'+(col2Label||'&le; 5 Menit')+'</th><th class="num">Total</th><th class="num">Pencapaian</th><th class="num">SLA</th></tr></thead>'+
+      '<tbody>'+rowsHtml+'</tbody></table>'+
+    '</div>';
+  }
+
+  const giRows = componentDetailRow('Kali Event/Gangguan', gi.event_le5, gi.total_event, 'Kali', slaGi)
+    + componentDetailRow('Trafo Distribusi', gi.gardu_le5, gi.total_gardu, 'Kali', slaGi)
+    + componentDetailRow('MW', gi.mw_le5, gi.total_mw, 'MW', slaGi);
+  const jtmRows = componentDetailRow('Kali Event/Gangguan', jtm.event_le5, jtm.total_event, 'Kali', slaJtm)
+    + componentDetailRow('Trafo Distribusi', jtm.gardu_le5, jtm.total_gardu, 'Kali', slaJtm)
+    + componentDetailRow('MW', jtm.mw_le5, jtm.total_mw, 'MW', slaJtm);
+  const rcRows = componentDetailRow('Remote Kontrol', rc.rc_gagal, rc.aset_rc, 'Kali', slaRc, rc.pct_bulanan*100);
+
+  document.getElementById('component-detail-scada').innerHTML =
+    groupTable('Gardu Induk', giRows) + groupTable('JTM All Zona', jtmRows) + groupTable('Kesiapan RC', rcRows, 'RC Gagal');
+}
+
+function renderSubTabs(m){
+  const el = document.getElementById('subtabs-'+m.key);
+  el.innerHTML = m.subs.map(s=>
+    '<button class="sub-tab'+(s.key===activeSub[m.key]?' active':'')+'" data-sub="'+s.key+'">'+s.label+'</button>'
+  ).join('');
+  el.querySelectorAll('.sub-tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      activeSub[m.key] = btn.dataset.sub;
+      el.querySelectorAll('.sub-tab').forEach(b=>b.classList.toggle('active', b.dataset.sub===activeSub[m.key]));
+      document.querySelectorAll('#page-'+m.key+' .sub-page').forEach(p=>p.classList.toggle('active', p.id==='subpage-'+m.key+'-'+activeSub[m.key]));
+    });
+  });
+}
+
+const GI_GROUP_FIELDS = [
+  {key:'gi', label:'Gardu Induk'},
+  {key:'eq', label:'Equipment'},
+  {key:'pp', label:'Penyebab Gangguan'},
+];
+const JTM_GROUP_FIELDS = [
+  {key:'z', label:'Zona'},
+  {key:'u', label:'UP3'},
+  {key:'p', label:'Penyulang'},
+  {key:'f', label:'Fasilitas'},
+  {key:'sf', label:'Sub Fasilitas'},
+  {key:'eq', label:'Equipment'},
+  {key:'pp', label:'Penyebab Padam'},
+];
+
+function metricValueField(m, s){
+  if(m.key==='scada') return s.key==='gi' ? 'ftr_like_scada_gi' : 'scada_jtm';
+  return s.key==='gi' ? 'ftr_gi' : 'ftr_jtm';
+}
+
+function renderSubContent(m, s){
+  const container = document.getElementById('subpage-'+m.key+'-'+s.key);
+  const idx = selectedMonthIdx[m.key];
+  const bulanNum = idx+1;
+
+  if(s.key==='gi'){
+    renderGIBreakdown(container, m, bulanNum);
+  } else {
+    renderJTMBreakdown(container, m, s, bulanNum);
+  }
+}
+
+function renderGIBreakdown(container, m, bulanNum){
+  const rows = DATA.breakdown_gi.filter(r=>r.b===bulanNum);
+  if(!rows.length){
+    container.innerHTML = '<p class="hint">Tidak ada data insiden Gardu Induk pada bulan ini.</p>';
+    return;
+  }
+  const sorted = [...rows].sort((a,b)=> m.key==='ftr' ? b.ftr_jam-a.ftr_jam : b.mw_tot-a.mw_tot);
+
+  let head, body;
+  if(m.key==='ftr'){
+    head = '<tr><th>Gardu Induk</th><th>Trafo</th><th class="num">FTR (menit)</th></tr>';
+    body = sorted.map(r=>
+      '<tr><td>'+r.gi+'</td><td>'+r.trafo+'</td><td class="num">'+(r.ftr_jam*60).toLocaleString('id-ID',{maximumFractionDigits:1})+'</td></tr>'
+    ).join('');
+  } else {
+    head = '<tr><th>Gardu Induk</th><th>Trafo</th><th class="num">MW &le;5 Menit</th><th class="num">MW Total</th><th class="num">Trafo Distribusi &le;5 Menit</th><th class="num">Trafo Distribusi Total</th></tr>';
+    body = sorted.map(r=>
+      '<tr><td>'+r.gi+'</td><td>'+r.trafo+'</td>'+
+      '<td class="num">'+r.mw_le5.toLocaleString('id-ID',{maximumFractionDigits:2})+'</td>'+
+      '<td class="num">'+r.mw_tot.toLocaleString('id-ID',{maximumFractionDigits:2})+'</td>'+
+      '<td class="num">'+r.gtt_le5.toLocaleString('id-ID',{maximumFractionDigits:2})+'</td>'+
+      '<td class="num">'+r.gtt_tot.toLocaleString('id-ID',{maximumFractionDigits:2})+'</td></tr>'
+    ).join('');
+  }
+  container.innerHTML = '<table><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
+}
+
+function renderJTMBreakdown(container, m, s, bulanNum){
+  if(!JTM_DETAIL){
+    container.innerHTML = '<div class="jtm-locked">Detail insiden JTM ('+ (JTM_DETAIL===null && DATA_SOURCE_URL ? 'sedang dimuat dari spreadsheet...' : 'perlu tersambung ke Apps Script untuk melihat detail ini') +')</div>';
+    return;
+  }
+  const gk = groupBy[s.key] || 'z';
+  const detailId = 'jtm-detail-'+m.key+'-'+s.key;
+  container.innerHTML =
+    '<div class="group-select" style="margin-bottom:16px;">'+JTM_GROUP_FIELDS.map(f=>
+      '<button class="group-btn'+(f.key===gk?' active':'')+'" data-field="'+f.key+'">'+f.label+'</button>'
+    ).join('')+'</div>'+
+    '<div id="jtm-barlist-'+m.key+'-'+s.key+'"></div>'+
+    '<details style="margin-top:18px;">'+
+      '<summary style="cursor:pointer;font-family:\'IBM Plex Mono\',monospace;font-size:12px;color:var(--purple);">Lihat detail per insiden (No Laporan, tanggal &amp; waktu padam/nyala)</summary>'+
+      '<div id="'+detailId+'" style="margin-top:14px;max-height:420px;overflow:auto;"></div>'+
+    '</details>';
+
+  function matchesSub(r){
+    if(m.key==='scada'){
+      return r.ah===1 && r.ak===0 && (r.zn==='zona 1' || r.zn==='zona 2');
+    }
+    if(s.key==='jtm_gt15') return r.ah===1 && r.ak===0 && r.aj==='lebih';
+    if(s.key==='jtm_lt15') return r.ah===1 && r.ak===0 && r.aj==='kurang';
+    return false;
+  }
+  const matchedRows = JTM_DETAIL.filter(r=> r.b===bulanNum && matchesSub(r));
+
+  function draw(field){
+    const map = {};
+    matchedRows.forEach(r=>{
+      const k = r[field] || '(tidak diketahui)';
+      if(!map[k]) map[k] = {t:0, kali:0, mw:0};
+      map[k].t += r.t*60; // jam -> menit
+      map[k].kali += 1;
+      map[k].mw += (r.ay + r.ba); // total mw kolom
+    });
+    const metricField = m.key==='ftr' ? 't' : 'mw';
+    const entries = Object.entries(map).sort((a,b)=>b[1][metricField]-a[1][metricField]).slice(0,15);
+    const maxVal = Math.max(...entries.map(e=>e[1][metricField]), 0.0001);
+    const listId = 'jtm-barlist-'+m.key+'-'+s.key;
+    document.getElementById(listId).innerHTML = entries.length ? entries.map(([k,v])=>{
+      const pct = (v[metricField]/maxVal*100).toFixed(1);
+      const displayVal = m.key==='ftr' ? v.t.toLocaleString('id-ID',{maximumFractionDigits:1})+' menit ('+v.kali+'x)' : v.kali+'x';
+      return '<div class="bar-row"><span class="bar-label">'+k+'</span>'+
+        '<span class="bar-track"><span class="bar-fill" style="width:'+pct+'%;background:'+m.color+'"></span></span>'+
+        '<span class="bar-val">'+displayVal+'</span></div>';
+    }).join('') : '<p class="hint">Tidak ada insiden pada bulan ini untuk kategori ini.</p>';
+  }
+  draw(gk);
+  container.querySelectorAll('.group-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      groupBy[s.key] = btn.dataset.field;
+      container.querySelectorAll('.group-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      draw(btn.dataset.field);
+    });
+  });
+
+  const detailsEl = container.querySelector('details');
+  detailsEl.addEventListener('toggle', function(){
+    if(!detailsEl.open) return;
+    const sorted = [...matchedRows].sort((a,b)=> b.t-a.t).slice(0,200);
+    const rowsHtml = sorted.map(r=>
+      '<tr><td>'+(r.nl||'-')+'</td><td>'+(r.tp||'-')+'</td><td>'+(r.wp||'-')+'</td>'+
+      '<td>'+(r.tn||'-')+'</td><td>'+(r.wn||'-')+'</td>'+
+      '<td class="num">'+(r.t*60).toLocaleString('id-ID',{maximumFractionDigits:1})+'</td></tr>'
+    ).join('');
+    document.getElementById(detailId).innerHTML =
+      '<p class="hint" style="margin-bottom:10px;">Menampilkan maksimal 200 insiden dengan durasi terlama pada bulan &amp; kategori ini.</p>'+
+      '<table><thead><tr><th>No Laporan</th><th>Tanggal Padam</th><th>Waktu Padam</th><th>Tanggal Nyala</th><th>Waktu Nyala</th><th class="num">Lama Padam (menit)</th></tr></thead>'+
+      '<tbody>'+(rowsHtml || '<tr><td colspan="6" class="hint">Tidak ada data.</td></tr>')+'</tbody></table>';
+  });
+}
+
+function renderAll(key){
+  const m = metricByKey(key);
+  document.querySelectorAll('#slicer-'+key+' .slicer-btn').forEach(b=>{
+    b.classList.toggle('active', parseInt(b.dataset.idx)===selectedMonthIdx[key]);
+  });
+  renderKpi(m);
+  updateChartHighlight(key);
+  renderAchieveOverview(m);
+  m.subs.forEach(s=>renderSubContent(m,s));
+}
+
+// ---- Notifikasi ----
+function detectAnomalies(){
+  const found = [];
+  // contoh: anomali GTT Agustus SCADA JTM (diketahui dari validasi)
+  const scadaJtm = DATA.recap.scada.jtm;
+  if(scadaJtm && scadaJtm[7]){
+    const augGtt = scadaJtm[7];
+    if(augGtt.total_gardu > 0 && augGtt.gardu_le5 / augGtt.total_gardu > 0.9){
+      found.push({month:'Agustus', message:'Rasio "gardu \u2264 5 menit" terhadap total gardu pada bulan Agustus (Efektivitas SCADA - JTM) tampak tidak wajar dibanding bulan lain, kemungkinan ada input data yang belum lengkap di sumbernya.'});
+    }
+  }
+  return found;
+}
+function updateNotifications(){
+  const notifications = detectAnomalies();
+  const badge = document.getElementById('notifBadge');
+  const list = document.getElementById('notifList');
+  if(notifications.length){
+    badge.style.display = 'flex'; badge.textContent = notifications.length;
+    list.innerHTML = notifications.map(n=>'<div class="notif-item"><strong>'+n.month+'</strong>'+n.message+'</div>').join('');
+  } else {
+    badge.style.display = 'none';
+    list.innerHTML = '<div class="notif-empty">Tidak ada notifikasi saat ini.</div>';
+  }
+}
+function setupNotificationToggle(){
+  const btn = document.getElementById('notifBtn');
+  const panel = document.getElementById('notifPanel');
+  const badge = document.getElementById('notifBadge');
+  btn.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    panel.classList.toggle('open');
+    if(panel.classList.contains('open')) badge.style.display='none';
+  });
+  document.addEventListener('click', (e)=>{
+    if(!panel.contains(e.target) && e.target!==btn) panel.classList.remove('open');
+  });
+}
+setupNotificationToggle();
+
+// ---- Muat data ----
+initDashboard();
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+async function fetchWithRetry(url, maxAttempts){
+  let lastErr;
+  for(let attempt=1; attempt<=maxAttempts; attempt++){
+    try{
+      const res = await fetch(url, {cache:'no-store'});
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      return await res.json();
+    } catch(err){
+      lastErr = err;
+      if(attempt < maxAttempts){
+        liveStatusEl.textContent = 'Menarik data terbaru dari spreadsheet... (percobaan '+attempt+' gagal, mencoba lagi)';
+        await sleep(attempt * 1500);
+      }
+    }
+  }
+  throw lastErr;
+}
+
+async function loadLiveData(){
+  if(!DATA_SOURCE_URL){ return; }
+  liveStatusEl.style.display='flex'; liveStatusEl.className='live-status loading';
+  liveStatusEl.textContent = 'Menarik data terbaru dari spreadsheet (bisa beberapa detik, data JTM besar)...';
+  try{
+    const fresh = await fetchWithRetry(DATA_SOURCE_URL, 3);
+    if(!fresh || !fresh.months || !fresh.recap) throw new Error('Format data tidak sesuai');
+    DATA = { months: fresh.months, months_label: MONTHS_LABEL, recap: fresh.recap, breakdown_gi: fresh.breakdown_gi };
+    JTM_DETAIL = fresh.breakdown_jtm || [];
+    initDashboard();
+    liveStatusEl.className='live-status ok';
+    liveStatusEl.textContent = 'Data terbaru berhasil dimuat dari spreadsheet \u00b7 '+new Date().toLocaleString('id-ID');
+    setTimeout(()=>{liveStatusEl.style.display='none';}, 5000);
+  } catch(err){
+    liveStatusEl.className='live-status error';
+    liveStatusEl.textContent = 'Gagal menarik data terbaru setelah beberapa percobaan, menampilkan data tersimpan terakhir ('+err.message+')';
+  }
+}
+loadLiveData();
+</script>
+</body>
+</html>
